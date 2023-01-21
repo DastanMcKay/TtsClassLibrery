@@ -1,0 +1,17 @@
+{
+    "name" : "RpgSystem",
+    "classes": [
+        {
+            "name": "Class1",
+            "version": 0,
+            "scriptUrl": "url of the script",
+            "xmlUrl": "url of the xml",
+            "assets": [
+                {
+                    "name": "Image1",
+                    "url": "asset url"
+                }
+            ]
+        }
+    ]
+}
