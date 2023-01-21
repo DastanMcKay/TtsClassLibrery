@@ -1,17 +1,14 @@
----comment
----@param t table
----@return table
-local function const(t)
-    local proxy = {}
-    local mt = {
-        __index = t,
-        __newindex = function(_, _, _)
-            error("attempt to update a read-only table", 2)
-        end
-    }
-    setmetatable(proxy, mt)
-    return proxy
-end
+--Class librery
+
+Settings = {
+    active = false,
+    checkForUpdates = true,
+    installUpdates = true
+}
+
+Classes = {}
+
+UpdateInfo = {}
 
 ---comment
 ---@param orig any
@@ -31,9 +28,12 @@ function deepcopy(orig)
     return copy
 end
 
-local function NewDownloadable()
+---comment
+---@param val string
+---@return table
+local function NewDownloadable(val)
     local this = {
-        value = "",
+        value = val,
     }
     local _value = function()
         return this.value
@@ -56,66 +56,70 @@ local function NewDownloadable()
 end
 
 ---comment
----@param name string
+---@param className string
 ---@return table
-local function NewClass(name)
+local function NewClass(className)
     local this = {
-        _name = name,
-        _version = 0,
-        _script = NewDownloadable(),
-        _xml = NewDownloadable(),
-        _assets = {},
-        _objectGuids = {},
+        name = className,
+        version = 0,
+        script = NewDownloadable(""),
+        xml = NewDownloadable(""),
+        assets = {},
+        objectGuids = {},
     }
     local _name = function()
-        return this._name
+        return this.name
     end
     local _version = function()
-        return this._version
+        return this.version
     end
     local _loadAssets = function(data)
-        this._assets = deepcopy(data)
+        this.assets = deepcopy(data)
     end
     local _inject = function(obj)
         local guid = obj.getGUID()
-        obj.setLuaScript(this._script.value())
-        obj.UI.setXml(this._xml.value(), this._assets)
-        table.insert(this._objectGuids, guid)
+        obj.setLuaScript(this.script.value())
+        obj.UI.setXml(this.xml.value(), this.assets)
+        table.insert(this.objectGuids, guid)
     end
     local _update = function(updateInfo)
-        this._version = updateInfo.version
-        this._script.download(updateInfo.scriptUrl)
-        this._xml.download(updateInfo.xmlUrl)
+        this.version = updateInfo.version
+        this.script.download(updateInfo.scriptUrl)
+        this.xml.download(updateInfo.xmlUrl)
         _loadAssets(updateInfo.assetData)
     end
     local _saveState = function()
-        return JSON.encode(this)
+        return JSON.encode({
+            name = this.name,
+            version = this.version,
+            script = this.script.value(),
+            xml = this.xml.value(),
+            assets = deepcopy(this.assets),
+            objectGuids = deepcopy(this.objectGuids)
+        })
     end
     local _loadState = function(savedState)
         if (savedState == "") then
             return
         end
-        this = JSON.decode(savedState)
+        local state = JSON.decode(savedState)
+        this.name = state.name
+        this.version = state.version
+        this.script = NewDownloadable(state.script)
+        this.xml = NewDownloadable(state.xml)
+        this.assets = deepcopy(state.assets)
+        this.objectGuids = deepcopy(state.objectGuids)
     end
 
-    return const({
+    return {
         name = _name,
         version = _version,
         saveState = _saveState,
         loadState = _loadState,
         update = _update,
         inject = _inject,
-    })
+    }
 end
-
-Settings = {
-    checkForUpdates = true,
-    installUpdates = true
-}
-
-Classes = {}
-
-UpdateInfo = {}
 
 function onSave()
     local state = {
@@ -123,7 +127,7 @@ function onSave()
         classes = {}
     }
     for className, class in pairs(Classes) do
-        state.classes[className] = class.savedState()
+        state.classes[className] = class.saveState()
     end
     return JSON.encode(state)
 end
@@ -137,6 +141,7 @@ function onLoad(saveState)
             Classes[className].loadState(classState)
         end
     end
+    setupUi()
     if (Settings.checkForUpdates) then
         checkForUpdates()
     end
@@ -154,13 +159,11 @@ function checkForUpdates()
             return
         end
 
-        print("Received:\n" .. request.text)
-
         local latestVersion = JSON.decode(request.text)
         self.setName(latestVersion.name)
         UpdateInfo = {}
 
-        for _, class in ipairs(latestVersion) do
+        for _, class in ipairs(latestVersion.classes) do
             if (Classes[class.name] == nil) then
                 Classes[class.name] = NewClass(class.name)
             end
@@ -174,19 +177,62 @@ function checkForUpdates()
         if (Settings.installUpdates) then
             getLatestUpdates()
         else
-            broadcastToAll("Custom RPG system update avaliable")
+            broadcastToAll(latestVersion.name .. " update avaliable", { r = 1, g = 1, b = 0 })
         end
     end)
 end
 
 function getLatestUpdates()
-    while (next(UpdateInfo) ~= nil) do
-        local updateInfo = table.remove(UpdateInfo)
-        Classes[updateInfo.name].update(updateInfo)
+    for className, info in pairs(UpdateInfo) do
+        Classes[className].update(info)
     end
+    Classes = {}
+end
 
-    print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-    for _, class in pairs(Classes) do
-        print("Class \"" .. class.name() .. "\" version " .. class.version())
+function showActivationPanel()
+    self.UI.setAttribute("WorkModePanel", "active", false)
+    self.UI.setAttribute("ActivationPanel", "active", true)
+end
+
+function showWorkModePanel()
+    self.UI.setAttribute("ActivationPanel", "active", false)
+    self.UI.setAttribute("WorkModePanel", "active", true)
+
+    broadcastToAll("Activate class librery", { r = 1, g = 1, b = 1 })
+end
+
+function enterWorkMode()
+    self.setLock(true)
+    self.interactable = false
+    Settings.active = true
+    showWorkModePanel()
+    if (Settings.checkForUpdates) then
+        checkForUpdates()
     end
+end
+
+function exitWorkMode()
+    self.interactable = true
+    self.setLock(false)
+    Settings.active = false
+    showActivationPanel()
+end
+
+function toggleAutoUpdate()
+    Settings.checkForUpdates = not Settings.checkForUpdates
+    self.UI.setAttribute("AutoCheckForUpdates", "isOn", Settings.checkForUpdates)
+    print("Toggle auto-update")
+end
+
+function toggleAutoInstall()
+    Settings.installUpdates = not Settings.installUpdates
+    self.UI.setAttribute("AutoInstallUpdates", "isOn", Settings.installUpdates)
+    print("Toggle auto-install")
+end
+
+function setupUi()
+    self.UI.setAttribute("ActivationPanel", "active", not Settings.active)
+    self.UI.setAttribute("WorkModePanel", "active", Settings.active)
+    self.UI.setAttribute("AutoCheckForUpdates", "isOn", Settings.checkForUpdates)
+    self.UI.setAttribute("AutoInstallUpdates", "isOn", Settings.installUpdates)
 end

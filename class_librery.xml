@@ -1,0 +1,28 @@
+<Defaults>
+    <Button preferredHeight="30"/>
+    <InputField lineType="SingleLine" preferredWidth="120" preferredHeight="30" characterValidation="Alphanumeric"/>
+    <HorizontalLayout childForceExpandWidth="false" childForceExpandHeight="false"/>
+    <VerticalLayout childForceExpandHeight="false"/>
+
+    <Button class="default" preferredHeight="30" preferredWidth="30" fontSize="16" fontStyle="Bold"/>
+    <Panel class="break" preferredHeight="2" color="#FFFFFF" />
+</Defaults>
+
+<Panel active='false' position='0 0 -100' height='80' width='80' id="ActivationPanel">
+    <Button onClick="enterWorkMode">Activate</Button>
+</Panel>
+<Panel active='false' position='0 0 -100' height='100' width='100' id="WorkModePanel">
+    <VerticalLayout rectAlignment="LowerRight" childAlignment="LowerRight" spacing="10">
+        <HorizontalLayout>
+            <Text text="Check for updates automaticaly" alignment="MiddleLeft"/>
+            <Toggle onValueChanged="toggleAutoUpdate" id="AutoCheckForUpdates" />
+        </HorizontalLayout>
+        <HorizontalLayout>
+            <Text text="Install updates automaticaly" alignment="MiddleLeft"/>
+            <Toggle onValueChanged="toggleAutoInstall" id="AutoInstallUpdates" />
+        </HorizontalLayout>
+        <HorizontalLayout childForceExpandWidth="true">
+            <Button onClick="exitWorkMode">Deactivate</Button>
+        </HorizontalLayout>
+    </VerticalLayout>
+</Panel>
